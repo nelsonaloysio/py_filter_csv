@@ -6,9 +6,10 @@ Filter CSV lines and columns for words or numerical interval.
 
 Allows automatic minimum and maximum date conversion to timestamp.
 
-usage: filter_csv.py [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
-                     [-M MAXIMUM] [-a] [-w] [-i] [-v]
-                     input
+usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
+                  [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
+                  [-q {0,1,2,3}] [-e ENCODING]
+                  input
 
 positional arguments:
   input                 input file name
@@ -20,7 +21,7 @@ optional arguments:
   -s STRINGS, --strings STRINGS
                         words or file containing list
   -c COLUMNS, --columns COLUMNS
-                        input column names
+                        column indexes or titles (comma separated)
   -m MINIMUM, --minimum MINIMUM
                         value or date for timestamp (YYYY-MM-DD hh:mm:ss)
   -M MAXIMUM, --maximum MAXIMUM
@@ -29,19 +30,33 @@ optional arguments:
   -w, --whole-words     match only lines with whole strings
   -i, --ignore-cases    ignore letter cases such as AaBbCc
   -v, --invert          invert line matching rules
+  -d DELIMITER, --delimiter DELIMITER
+                        field delimiter (optional)
+  -q {0,1,2,3}, --quoting {0,1,2,3}
+                        text quoting {0: 'minimal', 1: 'all',
+                        2: 'non-numeric', 3: 'none'}
+  -e ENCODING, --encoding ENCODING
+                        file encoding (default: utf-8)
 '''
 
 from argparse import ArgumentParser
-from csv import reader, writer, QUOTE_MINIMAL
+from csv import reader, writer
 from datetime import datetime, timezone
 from os.path import basename, isfile, splitext
 from re import search
 from string import punctuation
 
+ENCODING = 'utf-8'
+
+QUOTING = {0: 'minimal',
+           1: 'all',
+           2: 'non-numeric',
+           3: 'none'}
+
 def filter_csv(input_name, output_name=None,
     strings=[], columns=[], minimum=None, maximum=None,
     all_words=False, whole_words=False, ignore_cases=False,
-    invert=False, sep=None, quoting=QUOTE_MINIMAL):
+    invert=False, delimiter=None, quoting=0, encoding=ENCODING):
     '''
     Perform CSV file filtering.
     '''
@@ -57,10 +72,8 @@ def filter_csv(input_name, output_name=None,
             if isfile(strings):
                 strings = load_list(strings)
                 print('Loaded', len(strings), 'strings.')
-            elif sep:
-                strings = strings.replace(sep + ' ', sep).split(sep)
             else:
-                strings = [strings]
+                strings = strings.split('+')
             for w in strings:
                 strings_set.add(w.lower() if ignore_cases else w)
             strings = set(strings_set)
@@ -93,16 +106,16 @@ def filter_csv(input_name, output_name=None,
         raise SystemExit
 
     if isinstance(columns, str):
-        columns = str(columns).replace(sep+' ', sep).split(sep) if sep else [columns]
-        columns = list(set(columns))
+        columns = columns.replace(', ', ',').split(',')
 
     header_filtered = []
     columns_to_filter = []
     int_lines_matched = 1 # header
 
-    delimiter = get_file_delimiter(input_name)
+    if not delimiter:
+        delimiter = get_file_delimiter(input_name, encoding)
 
-    with open(input_name, 'rt', encoding='utf8', errors='ignore') as input_file:
+    with open(input_name, 'rt', encoding=encoding, errors='ignore') as input_file:
         file_reader = reader(input_file, delimiter=delimiter, quoting=quoting)
         header = next(file_reader)
 
@@ -143,8 +156,8 @@ def filter_csv(input_name, output_name=None,
             print('Error: columns %s not found in header.' % columns)
             raise SystemExit
 
-        with open(output_name, 'w', newline='', encoding='utf8', errors='ignore') as output_file:
-            file_writer = writer(output_file, delimiter=delimiter, quoting=QUOTE_MINIMAL)
+        with open(output_name, 'w', newline='', encoding=encoding, errors='ignore') as output_file:
+            file_writer = writer(output_file, delimiter=delimiter, quoting=quoting)
 
             if filter_columns_only:
                 file_writer.writerow(header_filtered)
@@ -253,11 +266,11 @@ def datetime_to_timestamp(date_time, utc=True):
         return date_time.replace(tzinfo=timezone.utc).timestamp()
     return date_time.timestamp()
 
-def get_file_delimiter(input_name):
+def get_file_delimiter(input_name, encoding=ENCODING):
     '''
     Returns character delimiter from file.
     '''
-    with open(input_name, 'rt', encoding='utf8') as input_file:
+    with open(input_name, 'rt', encoding=encoding) as input_file:
         file_reader = reader(input_file)
         header = str(next(file_reader))
 
@@ -302,7 +315,7 @@ def load_list(filename):
     or the file is not present, it returns an empty list.
     '''
     filter_strings = set()
-    with open(filename, 'rt', encoding='utf8') as f:
+    with open(filename, 'rt') as f:
         for line in f:
             filter_strings.add(line.rstrip())
     return list(filter_strings)
@@ -314,13 +327,16 @@ if __name__ == "__main__":
     parser.add_argument('input', action='store', help='input file name')
     parser.add_argument('-o', '--output', action='store', help='output file name')
     parser.add_argument('-s', '--strings', default=[], action='store', help='words or file containing list')
-    parser.add_argument('-c', '--columns', default=[], action='store', help='input column names')
+    parser.add_argument('-c', '--columns', default=[], action='store', help='column indexes or titles (comma separated)')
     parser.add_argument('-m', '--minimum', action='store', help='value or date for timestamp (YYYY-MM-DD hh:mm:ss)')
     parser.add_argument('-M', '--maximum', action='store', help='value or date for timestamp (YYYY-MM-DD hh:mm:ss)')
     parser.add_argument('-a', '--all-words', action='store_true', help='match only lines with all strings')
     parser.add_argument('-w', '--whole-words', action='store_true', help='match only lines with whole strings')
     parser.add_argument('-i', '--ignore-cases', action='store_true', help='ignore letter cases such as AaBbCc')
     parser.add_argument('-v', '--invert', action='store_true', help='invert line matching rules')
+    parser.add_argument('-d', '--delimiter', action='store', help='column field delimiter')
+    parser.add_argument('-q', '--quoting', action='store', type=int, choices=QUOTING.keys(), default=0, help='text quoting %s' % QUOTING)
+    parser.add_argument('-e', '--encoding', action='store', help='file encoding (default: %s)' % ENCODING)
 
     args = parser.parse_args()
 
@@ -334,4 +350,6 @@ if __name__ == "__main__":
                args.whole_words,
                args.ignore_cases,
                args.invert,
-               sep=',')
+               args.delimiter,
+               args.quoting,
+               args.encoding)

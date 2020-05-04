@@ -5,12 +5,11 @@ Filter CSV lines and columns for words or numerical interval.
 
 Allows automatic minimum and maximum date conversion to timestamp.
 
-Tested by comparing output results with GNU `grep`.
-
 ```
-usage: filter_csv.py [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
-                     [-M MAXIMUM] [-a] [-w] [-i] [-v]
-                     input
+usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
+                  [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
+                  [-q {0,1,2,3}] [-e ENCODING]
+                  input
 
 positional arguments:
   input                 input file name
@@ -22,7 +21,7 @@ optional arguments:
   -s STRINGS, --strings STRINGS
                         words or file containing list
   -c COLUMNS, --columns COLUMNS
-                        input column names
+                        column indexes or titles (comma separated)
   -m MINIMUM, --minimum MINIMUM
                         value or date for timestamp (YYYY-MM-DD hh:mm:ss)
   -M MAXIMUM, --maximum MAXIMUM
@@ -31,4 +30,13 @@ optional arguments:
   -w, --whole-words     match only lines with whole strings
   -i, --ignore-cases    ignore letter cases such as AaBbCc
   -v, --invert          invert line matching rules
+  -d DELIMITER, --delimiter DELIMITER
+                        field delimiter (optional)
+  -q {0,1,2,3}, --quoting {0,1,2,3}
+                        text quoting {0: 'minimal', 1: 'all',
+                        2: 'non-numeric', 3: 'none'}
+  -e ENCODING, --encoding ENCODING
+                        file encoding (default: utf-8)
 ```
+
+Tested by comparing output results with GNU **grep**.
