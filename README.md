@@ -8,7 +8,7 @@ Allows automatic minimum and maximum date conversion to timestamp.
 ```
 usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
                   [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
-                  [-q {0,1,2,3}] [-e ENCODING]
+                  [-q {0,1,2,3}] [-e ENCODING] [--index-ignore]
                   input
 
 positional arguments:
@@ -37,6 +37,7 @@ optional arguments:
                         2: 'non-numeric', 3: 'none'}
   -e ENCODING, --encoding ENCODING
                         file encoding (default: utf-8)
+  --index-ignore        bypass IndexError exceptions
 ```
 
 Tested by comparing output results with GNU **grep**.

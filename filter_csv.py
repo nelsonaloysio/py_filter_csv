@@ -8,7 +8,7 @@ Allows automatic minimum and maximum date conversion to timestamp.
 
 usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
                   [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
-                  [-q {0,1,2,3}] [-e ENCODING]
+                  [-q {0,1,2,3}] [-e ENCODING] [--index-ignore]
                   input
 
 positional arguments:
@@ -37,6 +37,7 @@ optional arguments:
                         2: 'non-numeric', 3: 'none'}
   -e ENCODING, --encoding ENCODING
                         file encoding (default: utf-8)
+  --index-ignore        bypass IndexError exceptions
 '''
 
 from argparse import ArgumentParser
@@ -45,6 +46,7 @@ from datetime import datetime, timezone
 from os.path import basename, isfile, splitext
 from re import search
 from string import punctuation
+from sys import stderr
 
 ENCODING = 'utf-8'
 
@@ -56,11 +58,17 @@ QUOTING = {0: 'minimal',
 def filter_csv(input_name, output_name=None,
     strings=[], columns=[], minimum=None, maximum=None,
     all_words=False, whole_words=False, ignore_cases=False,
-    invert=False, delimiter=None, quoting=0, encoding=ENCODING):
+    invert=False, delimiter=None, quoting=0,
+    encoding=ENCODING, index_ignore=False):
     '''
     Perform CSV file filtering.
     '''
     filter_columns_only = False
+
+    quotechar = '"'
+
+    if quoting == 3:
+        quotechar = ''
 
     if not output_name:
         name, ext = splitext(basename(input_name))
@@ -81,7 +89,7 @@ def filter_csv(input_name, output_name=None,
     elif any(x for x in [minimum, maximum]):
         # check for columns
         if not columns:
-            print("Error: missing required COLUMNS argument.\nPlease enter '-h' or '--help' for documentation.")
+            print('Error: missing required COLUMNS argument.', file=stderr)
             raise SystemExit
         # set minimum value
         if is_date(minimum):
@@ -102,11 +110,15 @@ def filter_csv(input_name, output_name=None,
         filter_columns_only = True
 
     else:
-        print("Error: missing required filter arguments.\nPlease enter '-h' or '--help' for documentation.")
+        print('Error: missing required filter arguments.', file=stderr)
         raise SystemExit
 
     if isinstance(columns, str):
         columns = columns.replace(', ', ',').split(',')
+
+    if any(x in columns for x in [0, '0']):
+        print('Error: invalid column (0), must be >= 1.', file=stderr)
+        raise SystemExit
 
     header_filtered = []
     columns_to_filter = []
@@ -115,7 +127,7 @@ def filter_csv(input_name, output_name=None,
     if not delimiter:
         delimiter = get_file_delimiter(input_name, encoding)
 
-    with open(input_name, 'rt', encoding=encoding, errors='ignore') as input_file:
+    with open(input_name, 'rt', encoding=encoding) as input_file:
         file_reader = reader(input_file, delimiter=delimiter, quoting=quoting)
         header = next(file_reader)
 
@@ -123,18 +135,21 @@ def filter_csv(input_name, output_name=None,
             columns = header
 
         for column in columns:
-            try: # select columns
-                if column in header or 1 <= int(column) <= len(header):
-                    try: # find by string
-                        column_number = header.index(column)
-                        columns_to_filter.append(column_number)
-                        header_filtered.append(header[int(column_number)])
-                    except ValueError: # find by index
-                        column_title = header[int(column) - 1]
-                        columns_to_filter.append(header.index(column_title))
-                        header_filtered.append(column_title)
-            except ValueError:
-                print('Warning: column "%s" not found in header.' % column)
+            if isinstance(column, str):
+                try: # as index number
+                    column = int(column)
+                    if column > len(header):
+                        print("Error: invalid column (%s), header has %s columns." % (column, len(header)), file=stderr)
+                        raise SystemExit
+                    columns_to_filter.append(column-1)
+                    header_filtered.append(header[column-1])
+
+                except ValueError: # as title
+                    if column not in header:
+                        print("Error: invalid column ('%s'), not in header: %s." % (column, header), file=stderr)
+                        raise SystemExit
+                    columns_to_filter.append(header.index(column))
+                    header_filtered.append(column)
 
         # invert columns to filter if cutting only
         if invert and filter_columns_only:
@@ -152,12 +167,8 @@ def filter_csv(input_name, output_name=None,
             for title in unfiltered_titles:
                 header_filtered.remove(title)
 
-        if columns_to_filter == []:
-            print('Error: columns %s not found in header.' % columns)
-            raise SystemExit
-
-        with open(output_name, 'w', newline='', encoding=encoding, errors='ignore') as output_file:
-            file_writer = writer(output_file, delimiter=delimiter, quoting=quoting)
+        with open(output_name, 'w', newline='', encoding=encoding) as output_file:
+            file_writer = writer(output_file, delimiter=delimiter, quoting=quoting, quotechar=quotechar)
 
             if filter_columns_only:
                 file_writer.writerow(header_filtered)
@@ -166,7 +177,8 @@ def filter_csv(input_name, output_name=None,
 
             for line in file_reader:
                 index = file_reader.line_num
-                print('Filtering ('+str(index)+')...', end='\r') if (index/10000).is_integer() else None
+                print('Read %s lines.' % index, end='\r')\
+                if (index/10000).is_integer() else None
 
                 data_to_filter = []
 
@@ -209,8 +221,10 @@ def filter_csv(input_name, output_name=None,
                         if filter_match:
                             break
 
-                    except Exception as e:
-                        print('Warning: line', str(file_reader.line_num) + ',', str(e) + '.')
+                    except IndexError:
+                        if index_ignore:
+                            continue
+                        raise
 
                 if filter_columns_only:
                     line = data_to_filter
@@ -276,7 +290,6 @@ def get_file_delimiter(input_name, encoding=ENCODING):
 
     for i in ['|', '\\t', ';', ',']:
         if i in header: # \\t != \t
-            print('Delimiter set as "' + i + '".')
             return i.replace('\\t', '\t')
 
     return '\n'
@@ -337,6 +350,7 @@ if __name__ == "__main__":
     parser.add_argument('-d', '--delimiter', action='store', help='column field delimiter')
     parser.add_argument('-q', '--quoting', action='store', type=int, choices=QUOTING.keys(), default=0, help='text quoting %s' % QUOTING)
     parser.add_argument('-e', '--encoding', action='store', help='file encoding (default: %s)' % ENCODING)
+    parser.add_argument('--index-ignore', action='store_true', help='skip line and bypass IndexError exceptions')
 
     args = parser.parse_args()
 
@@ -352,4 +366,5 @@ if __name__ == "__main__":
                args.invert,
                args.delimiter,
                args.quoting,
-               args.encoding)
+               args.encoding,
+               args.index_ignore)
