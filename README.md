@@ -9,6 +9,7 @@ Allows automatic minimum and maximum date conversion to timestamp.
 usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
                   [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
                   [-q {0,1,2,3}] [-e ENCODING] [--index-ignore]
+                  [--split-character SPLIT_CHARACTER]
                   input
 
 positional arguments:
@@ -19,7 +20,7 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         output file name
   -s STRINGS, --strings STRINGS
-                        words or file containing list
+                        list of words or file containing list
   -c COLUMNS, --columns COLUMNS
                         column indexes or titles (comma separated)
   -m MINIMUM, --minimum MINIMUM
@@ -31,13 +32,16 @@ optional arguments:
   -i, --ignore-cases    ignore letter cases such as AaBbCc
   -v, --invert          invert line matching rules
   -d DELIMITER, --delimiter DELIMITER
-                        field delimiter (optional)
+                        column field delimiter
   -q {0,1,2,3}, --quoting {0,1,2,3}
                         text quoting {0: 'minimal', 1: 'all',
                         2: 'non-numeric', 3: 'none'}
   -e ENCODING, --encoding ENCODING
                         file encoding (default: utf-8)
-  --index-ignore        bypass IndexError exceptions
+  --index-ignore        skip line and bypass IndexError exceptions
+  --split-character SPLIT_CHARACTER
+                        to split filter strings (default: comma;
+                        'none' or 'false' to ignore)
 ```
 
-Tested by comparing output results with GNU **grep**.
+Tested by comparing output results with GNU **[grep](https://www.gnu.org/software/grep/)**.

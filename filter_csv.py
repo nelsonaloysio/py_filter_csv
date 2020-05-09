@@ -9,6 +9,7 @@ Allows automatic minimum and maximum date conversion to timestamp.
 usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
                   [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
                   [-q {0,1,2,3}] [-e ENCODING] [--index-ignore]
+                  [--split-character SPLIT_CHARACTER]
                   input
 
 positional arguments:
@@ -19,7 +20,7 @@ optional arguments:
   -o OUTPUT, --output OUTPUT
                         output file name
   -s STRINGS, --strings STRINGS
-                        words or file containing list
+                        list of words or file containing list
   -c COLUMNS, --columns COLUMNS
                         column indexes or titles (comma separated)
   -m MINIMUM, --minimum MINIMUM
@@ -31,13 +32,16 @@ optional arguments:
   -i, --ignore-cases    ignore letter cases such as AaBbCc
   -v, --invert          invert line matching rules
   -d DELIMITER, --delimiter DELIMITER
-                        field delimiter (optional)
+                        column field delimiter
   -q {0,1,2,3}, --quoting {0,1,2,3}
                         text quoting {0: 'minimal', 1: 'all',
                         2: 'non-numeric', 3: 'none'}
   -e ENCODING, --encoding ENCODING
                         file encoding (default: utf-8)
-  --index-ignore        bypass IndexError exceptions
+  --index-ignore        skip line and bypass IndexError exceptions
+  --split-character SPLIT_CHARACTER
+                        to split filter strings (default: comma;
+                        'none' or 'false' to ignore)
 '''
 
 from argparse import ArgumentParser
@@ -58,8 +62,8 @@ QUOTING = {0: 'minimal',
 def filter_csv(input_name, output_name=None,
     strings=[], columns=[], minimum=None, maximum=None,
     all_words=False, whole_words=False, ignore_cases=False,
-    invert=False, delimiter=None, quoting=0,
-    encoding=ENCODING, index_ignore=False):
+    invert=False, delimiter=None, quoting=0, encoding=ENCODING,
+    index_ignore=False, split_character=None):
     '''
     Perform CSV file filtering.
     '''
@@ -69,6 +73,9 @@ def filter_csv(input_name, output_name=None,
 
     if quoting == 3:
         quotechar = ''
+
+    if split_character in ('none', 'false'):
+        split_character = None
 
     if not output_name:
         name, ext = splitext(basename(input_name))
@@ -80,6 +87,8 @@ def filter_csv(input_name, output_name=None,
             if isfile(strings):
                 strings = load_list(strings)
                 print('Loaded', len(strings), 'strings.')
+            elif split_character:
+                strings = strings.split(split_character)
             else:
                 strings = strings.split('+')
             for w in strings:
@@ -114,7 +123,7 @@ def filter_csv(input_name, output_name=None,
         raise SystemExit
 
     if isinstance(columns, str):
-        columns = columns.replace(', ', ',').split(',')
+        columns = columns.split(',')
 
     if any(x in columns for x in [0, '0']):
         print('Error: invalid column (0), must be >= 1.', file=stderr)
@@ -339,7 +348,7 @@ if __name__ == "__main__":
 
     parser.add_argument('input', action='store', help='input file name')
     parser.add_argument('-o', '--output', action='store', help='output file name')
-    parser.add_argument('-s', '--strings', default=[], action='store', help='words or file containing list')
+    parser.add_argument('-s', '--strings', default=[], action='store', help='list of words or file containing list')
     parser.add_argument('-c', '--columns', default=[], action='store', help='column indexes or titles (comma separated)')
     parser.add_argument('-m', '--minimum', action='store', help='value or date for timestamp (YYYY-MM-DD hh:mm:ss)')
     parser.add_argument('-M', '--maximum', action='store', help='value or date for timestamp (YYYY-MM-DD hh:mm:ss)')
@@ -351,6 +360,7 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--quoting', action='store', type=int, choices=QUOTING.keys(), default=0, help='text quoting %s' % QUOTING)
     parser.add_argument('-e', '--encoding', action='store', help='file encoding (default: %s)' % ENCODING)
     parser.add_argument('--index-ignore', action='store_true', help='skip line and bypass IndexError exceptions')
+    parser.add_argument('--split-character', action='store', default=',', help="to split filter strings (default: comma; 'none' or 'false' to ignore)")
 
     args = parser.parse_args()
 
@@ -367,4 +377,5 @@ if __name__ == "__main__":
                args.delimiter,
                args.quoting,
                args.encoding,
-               args.index_ignore)
+               args.index_ignore,
+               args.split_character)
