@@ -311,7 +311,7 @@ def is_date(str_):
         datetime.strptime(str_, '%Y-%m-%d %H:%M:%S')
     except Exception:
         try:
-            datetime.strptime(str_, '%Y-%m-%d %H:%M:%S')
+            datetime.strptime(str_, '%Y-%m-%d')
         except Exception:
             return False
     return True
