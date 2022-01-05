@@ -9,7 +9,7 @@ Allows automatic minimum and maximum date conversion to timestamp.
 usage: filter_csv [-h] [-o OUTPUT] [-s STRINGS] [-c COLUMNS] [-m MINIMUM]
                   [-M MAXIMUM] [-a] [-w] [-i] [-v] [-d DELIMITER]
                   [-q {0,1,2,3}] [-e ENCODING] [--index-ignore]
-                  [--split-character SPLIT_CHARACTER]
+                  [--max-field-size-limit] [--split-character SPLIT_CHARACTER]
                   input
 
 positional arguments:
@@ -34,23 +34,23 @@ optional arguments:
   -d DELIMITER, --delimiter DELIMITER
                         column field delimiter
   -q {0,1,2,3}, --quoting {0,1,2,3}
-                        text quoting {0: 'minimal', 1: 'all',
-                        2: 'non-numeric', 3: 'none'}
+                        text quoting {0: 'minimal', 1: 'all', 2: 'non-numeric', 3: 'none'}
   -e ENCODING, --encoding ENCODING
                         file encoding (default: utf-8)
   --index-ignore        skip line and bypass IndexError exceptions
+  --max-field-size-limit
+                        extend field size limit to maximum allowed
   --split-character SPLIT_CHARACTER
-                        to split filter strings (default: comma;
-                        'none' or 'false' to ignore)
+                        to split filter strings (default: comma; 'none' or 'false' to ignore)
 '''
 
 from argparse import ArgumentParser
-from csv import reader, writer
+from csv import field_size_limit, reader, writer
 from datetime import datetime, timezone
 from os.path import basename, isfile, splitext
 from re import search
 from string import punctuation
-from sys import stderr
+from sys import maxsize, stderr
 
 ENCODING = 'utf-8'
 
@@ -63,7 +63,7 @@ def filter_csv(input_name, output_name=None,
     strings=[], columns=[], minimum=None, maximum=None,
     all_words=False, whole_words=False, ignore_cases=False,
     invert=False, delimiter=None, quoting=0, encoding=ENCODING,
-    index_ignore=False, split_character=None):
+    index_ignore=False, max_field_size=False, split_character=None):
     '''
     Perform CSV file filtering.
     '''
@@ -76,6 +76,9 @@ def filter_csv(input_name, output_name=None,
 
     if split_character in ('none', 'false'):
         split_character = None
+
+    if max_field_size:
+        max_field_size_limit()
 
     if not output_name:
         name, ext = splitext(basename(input_name))
@@ -342,6 +345,22 @@ def load_list(filename):
             filter_strings.add(line.rstrip())
     return list(filter_strings)
 
+def max_field_size_limit(d=10):
+    '''
+    Extend the maximum allowed field size to
+    work around field limit errors reading files.
+    '''
+    max_size = int(maxsize)
+
+    while True:
+        max_size = int(max_size/d)
+        try:
+            field_size_limit(max_size)
+        except OverflowError:
+            pass
+        else:
+            return
+
 if __name__ == "__main__":
 
     parser = ArgumentParser()
@@ -360,6 +379,7 @@ if __name__ == "__main__":
     parser.add_argument('-q', '--quoting', action='store', type=int, choices=QUOTING.keys(), default=0, help='text quoting %s' % QUOTING)
     parser.add_argument('-e', '--encoding', action='store', help='file encoding (default: %s)' % ENCODING)
     parser.add_argument('--index-ignore', action='store_true', help='skip line and bypass IndexError exceptions')
+    parser.add_argument('--max-field-size-limit', action='store_true', help='extend field size limit to maximum allowed')
     parser.add_argument('--split-character', action='store', default=',', help="to split filter strings (default: comma; 'none' or 'false' to ignore)")
 
     args = parser.parse_args()
@@ -378,4 +398,5 @@ if __name__ == "__main__":
                args.quoting,
                args.encoding,
                args.index_ignore,
+               args.max_field_size_limit,
                args.split_character)
